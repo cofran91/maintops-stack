@@ -1,0 +1,6 @@
+[submodule "maintops-api-laravel"]
+	path = maintops-api-laravel
+	url = git@github.com:cofran91/maintops-api-laravel.git
+[submodule "maintops-web-vue"]
+	path = maintops-web-vue
+	url = git@github.com:cofran91/maintops-web-vue.git
