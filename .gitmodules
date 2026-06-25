@@ -7,3 +7,6 @@
 [submodule "maintops-realtime-node"]
 	path = maintops-realtime-node
 	url = git@github.com:cofran91/maintops-realtime-node.git
+[submodule "maintops-analytics-fastapi"]
+	path = maintops-analytics-fastapi
+	url = git@github.com:cofran91/maintops-analytics-fastapi.git
