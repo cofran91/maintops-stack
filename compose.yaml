@@ -31,9 +31,9 @@ x-laravel-environment: &laravel-environment
   OPERATIONS_EVENT_REDIS_PORT: "6379"
   OPERATIONS_EVENT_REDIS_DB: "0"
   OPERATIONS_EVENT_STREAM: ${MAINTOPS_EVENTS_STREAM:-maintops:events}
-  REALTIME_TOKEN_SECRET: ${REALTIME_TOKEN_SECRET:-maintops-local-development-realtime-token-secret}
-  REALTIME_TOKEN_TTL_SECONDS: "300"
-  REALTIME_TOKEN_AUDIENCE: realtime
+  SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:-maintops-local-development-service-token-secret}
+  SERVICE_TOKEN_TTL_SECONDS: "300"
+  SERVICE_TOKEN_ISSUER: ${APP_URL:-http://localhost:8000}
   MAIL_MAILER: smtp
   MAIL_HOST: mailpit
   MAIL_PORT: "1025"
@@ -154,7 +154,7 @@ services:
       REDIS_STREAM_CLAIM_IDLE_MS: "60000"
       REDIS_STREAM_RETRY_DELAY_MS: "1000"
       EVENT_DEDUP_TTL_SECONDS: "86400"
-      REALTIME_TOKEN_SECRET: ${REALTIME_TOKEN_SECRET:-maintops-local-development-realtime-token-secret}
+      SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:-maintops-local-development-service-token-secret}
       REALTIME_ALLOWED_ROLES: ${REALTIME_ALLOWED_ROLES:-super_admin,admin,workshop_manager,advisor,technician}
       REALTIME_MAX_CONNECTIONS: "1000"
       REALTIME_MAX_CONNECTIONS_PER_USER: "3"

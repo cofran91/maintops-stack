@@ -68,7 +68,7 @@ Redis queda disponible solo dentro de la red de Compose como `redis:6379`.
 
 ## Flujo De Ejecución
 
-La consola Vue autentica contra Laravel y solicita un token realtime de corta duración en `POST /api/v1/auth/realtime-token`. El gateway Realtime valida ese token, une el navegador a salas autorizadas de Socket.IO, consume eventos operativos desde Redis Streams y envía actualizaciones a los usuarios conectados.
+La consola Vue autentica contra Laravel y solicita un token de servicio de corta duración en `POST /api/v1/auth/service-token` con `audience: "realtime"`. El gateway Realtime valida ese token, une el navegador a salas autorizadas de Socket.IO, consume eventos operativos desde Redis Streams y envía actualizaciones a los usuarios conectados.
 
 Laravel publica eventos operativos en el stream compartido configurado por `MAINTOPS_EVENTS_STREAM`. El stack fija este stream como `maintops:events` tanto para Laravel como para el gateway Realtime.
 
