@@ -4,3 +4,6 @@
 [submodule "maintops-web-vue"]
 	path = maintops-web-vue
 	url = git@github.com:cofran91/maintops-web-vue.git
+[submodule "maintops-realtime-node"]
+	path = maintops-realtime-node
+	url = git@github.com:cofran91/maintops-realtime-node.git

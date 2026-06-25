@@ -27,6 +27,13 @@ x-laravel-environment: &laravel-environment
   REDIS_CLIENT: phpredis
   REDIS_HOST: redis
   REDIS_PORT: "6379"
+  OPERATIONS_EVENT_REDIS_HOST: redis
+  OPERATIONS_EVENT_REDIS_PORT: "6379"
+  OPERATIONS_EVENT_REDIS_DB: "0"
+  OPERATIONS_EVENT_STREAM: ${MAINTOPS_EVENTS_STREAM:-maintops:events}
+  REALTIME_TOKEN_SECRET: ${REALTIME_TOKEN_SECRET:-maintops-local-development-realtime-token-secret}
+  REALTIME_TOKEN_TTL_SECONDS: "300"
+  REALTIME_TOKEN_AUDIENCE: realtime
   MAIL_MAILER: smtp
   MAIL_HOST: mailpit
   MAIL_PORT: "1025"
@@ -39,6 +46,10 @@ x-laravel-build: &laravel-build
 
 x-frontend-build: &frontend-build
   context: ./maintops-web-vue
+
+x-realtime-build: &realtime-build
+  context: ./maintops-realtime-node
+  target: development
 
 services:
   mysql:
@@ -103,16 +114,78 @@ services:
       timeout: 5s
       retries: 20
 
+  queue:
+    image: maintops-stack-laravel
+    build: *laravel-build
+    command: php artisan queue:work --sleep=1 --tries=5 --timeout=90
+    environment: *laravel-environment
+    depends_on:
+      laravel-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  scheduler:
+    image: maintops-stack-laravel
+    build: *laravel-build
+    command: php artisan schedule:work
+    environment: *laravel-environment
+    depends_on:
+      laravel-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  realtime:
+    image: maintops-stack-realtime
+    build: *realtime-build
+    environment:
+      NODE_ENV: ${REALTIME_NODE_ENV:-development}
+      PORT: "3000"
+      LOG_LEVEL: ${REALTIME_LOG_LEVEL:-info}
+      CORS_ORIGIN: ${REALTIME_CORS_ORIGIN:-http://localhost:5173}
+      HTTP_MAX_PAYLOAD_BYTES: "65536"
+      REDIS_URL: redis://redis:6379
+      REDIS_CONNECT_TIMEOUT_MS: "1500"
+      REDIS_MAX_RETRY_DELAY_MS: "5000"
+      MAINTOPS_EVENTS_STREAM: ${MAINTOPS_EVENTS_STREAM:-maintops:events}
+      MAINTOPS_EVENTS_CONSUMER_GROUP: ${MAINTOPS_EVENTS_CONSUMER_GROUP:-realtime-gateway}
+      MAINTOPS_EVENTS_DEAD_LETTER_STREAM: ${MAINTOPS_EVENTS_DEAD_LETTER_STREAM:-maintops:events:dead-letter}
+      REDIS_STREAM_BATCH_SIZE: "50"
+      REDIS_STREAM_BLOCK_MS: "5000"
+      REDIS_STREAM_CLAIM_IDLE_MS: "60000"
+      REDIS_STREAM_RETRY_DELAY_MS: "1000"
+      EVENT_DEDUP_TTL_SECONDS: "86400"
+      REALTIME_TOKEN_SECRET: ${REALTIME_TOKEN_SECRET:-maintops-local-development-realtime-token-secret}
+      REALTIME_ALLOWED_ROLES: ${REALTIME_ALLOWED_ROLES:-super_admin,admin,workshop_manager,advisor,technician}
+      REALTIME_MAX_CONNECTIONS: "1000"
+      REALTIME_MAX_CONNECTIONS_PER_USER: "3"
+      REALTIME_MAX_PAYLOAD_BYTES: "65536"
+      PRESENCE_TTL_SECONDS: "60"
+    ports:
+      - "${REALTIME_PORT:-3000}:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      laravel:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/ready').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   frontend:
     image: maintops-stack-frontend
     build: *frontend-build
     environment:
       FRONTEND_ALLOWED_HOSTS: ${FRONTEND_ALLOWED_HOSTS:-localhost,127.0.0.1}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+      VITE_REALTIME_URL: ${VITE_REALTIME_URL:-http://localhost:3000}
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
       laravel:
+        condition: service_healthy
+      realtime:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5173').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
