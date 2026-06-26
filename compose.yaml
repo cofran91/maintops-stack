@@ -34,12 +34,38 @@ x-laravel-environment: &laravel-environment
   SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:-maintops-local-development-service-token-secret}
   SERVICE_TOKEN_TTL_SECONDS: "300"
   SERVICE_TOKEN_ISSUER: ${APP_URL:-http://localhost:8000}
+  OPERATIONS_ANALYTICS_SERVICE_KEY: ${OPERATIONS_ANALYTICS_SERVICE_KEY:-maintops-local-development-analytics-service-key}
   MAIL_MAILER: smtp
   MAIL_HOST: mailpit
   MAIL_PORT: "1025"
   MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-hello@example.com}
   MAIL_FROM_NAME: ${MAIL_FROM_NAME:-MaintOps}
   SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-localhost,localhost:5173,127.0.0.1,127.0.0.1:5173}
+
+x-analytics-environment: &analytics-environment
+  APP_ENV: ${APP_ENV:-local}
+  POSTGRES_HOST: analytics-db
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${ANALYTICS_POSTGRES_DB:-maintops_analytics}
+  POSTGRES_USER: ${ANALYTICS_POSTGRES_USER:-maintops_analytics}
+  POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-maintops-analytics-password}
+  SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:-maintops-local-development-service-token-secret}
+  LARAVEL_INTERNAL_URL: http://laravel:8000
+  LARAVEL_ANALYTICS_SERVICE_KEY: ${OPERATIONS_ANALYTICS_SERVICE_KEY:-maintops-local-development-analytics-service-key}
+  INITIAL_SYNC_PAGE_SIZE: ${ANALYTICS_INITIAL_SYNC_PAGE_SIZE:-100}
+  INITIAL_SYNC_TIMEOUT_SECONDS: ${ANALYTICS_INITIAL_SYNC_TIMEOUT_SECONDS:-15}
+  REDIS_URL: redis://redis:6379/0
+  REDIS_STREAM: ${MAINTOPS_EVENTS_STREAM:-maintops:events}
+  REDIS_CONSUMER_GROUP: ${ANALYTICS_REDIS_CONSUMER_GROUP:-maintops-analytics-fastapi}
+  REDIS_CONSUMER_NAME: ${ANALYTICS_REDIS_CONSUMER_NAME:-analytics-worker}
+  REDIS_BATCH_SIZE: ${ANALYTICS_REDIS_BATCH_SIZE:-50}
+  REDIS_BLOCK_MS: ${ANALYTICS_REDIS_BLOCK_MS:-5000}
+  REDIS_PENDING_IDLE_MS: ${ANALYTICS_REDIS_PENDING_IDLE_MS:-60000}
+  ANALYTICS_DEFAULT_PERIOD_DAYS: ${ANALYTICS_DEFAULT_PERIOD_DAYS:-30}
+  ANALYTICS_MINIMUM_SAMPLE_SIZE: ${ANALYTICS_MINIMUM_SAMPLE_SIZE:-3}
+  FORECAST_DEFAULT_HORIZON_DAYS: ${FORECAST_DEFAULT_HORIZON_DAYS:-14}
+  FORECAST_HISTORY_DAYS: ${FORECAST_HISTORY_DAYS:-28}
+  FORECAST_MINIMUM_HISTORY_ACTIVITIES: ${FORECAST_MINIMUM_HISTORY_ACTIVITIES:-5}
 
 x-laravel-build: &laravel-build
   context: ./maintops-api-laravel
@@ -50,6 +76,9 @@ x-frontend-build: &frontend-build
 x-realtime-build: &realtime-build
   context: ./maintops-realtime-node
   target: development
+
+x-analytics-build: &analytics-build
+  context: ./maintops-analytics-fastapi
 
 services:
   mysql:
@@ -173,6 +202,77 @@ services:
       timeout: 5s
       retries: 20
 
+  analytics-db:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:${ANALYTICS_POSTGRES_HOST_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: ${ANALYTICS_POSTGRES_DB:-maintops_analytics}
+      POSTGRES_USER: ${ANALYTICS_POSTGRES_USER:-maintops_analytics}
+      POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-maintops-analytics-password}
+    volumes:
+      - analytics-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  analytics-migrations:
+    image: maintops-stack-analytics
+    command: alembic upgrade head
+    environment: *analytics-environment
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+    restart: "no"
+
+  analytics-initial-sync:
+    image: maintops-stack-analytics
+    command: python -m app.initial_sync
+    environment: *analytics-environment
+    depends_on:
+      laravel:
+        condition: service_healthy
+      analytics-migrations:
+        condition: service_completed_successfully
+    restart: "no"
+
+  analytics-api:
+    image: maintops-stack-analytics
+    build: *analytics-build
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *analytics-environment
+      CORS_ORIGINS: ${ANALYTICS_CORS_ORIGINS:-["http://localhost:5173"]}
+    ports:
+      - "${ANALYTICS_API_PORT:-8001}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      analytics-db:
+        condition: service_healthy
+      analytics-initial-sync:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  analytics-worker:
+    image: maintops-stack-analytics
+    command: python -m app.worker
+    environment: *analytics-environment
+    depends_on:
+      redis:
+        condition: service_healthy
+      analytics-db:
+        condition: service_healthy
+      analytics-initial-sync:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   frontend:
     image: maintops-stack-frontend
     build: *frontend-build
@@ -180,12 +280,15 @@ services:
       FRONTEND_ALLOWED_HOSTS: ${FRONTEND_ALLOWED_HOSTS:-localhost,127.0.0.1}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
       VITE_REALTIME_URL: ${VITE_REALTIME_URL:-http://localhost:3000}
+      VITE_ANALYTICS_BASE_URL: ${VITE_ANALYTICS_BASE_URL:-http://localhost:8001}
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
       laravel:
         condition: service_healthy
       realtime:
+        condition: service_healthy
+      analytics-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5173').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
@@ -196,3 +299,4 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  analytics-postgres-data:
