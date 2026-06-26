@@ -1,19 +1,34 @@
 # MaintOps Developer Stack
 
-Ambiente local con Docker para MaintOps, un proyecto de portafolio enfocado en la gestión de operaciones de mantenimiento. Este repositorio integra la API Laravel, la consola Vue, el gateway Realtime, la API Analytics, MySQL, PostgreSQL, Redis y Mailpit con un solo archivo Compose para que el entorno pueda clonarse y ejecutarse de forma consistente en otra máquina.
+Documentación en inglés: [README.md](README.md).
 
-Este repositorio contiene únicamente la orquestación del ambiente: Docker Compose, valores locales por defecto y documentación operativa. El código fuente de las aplicaciones vive en submódulos Git.
+MaintOps es un proyecto multi-servicio de portafolio para operaciones de mantenimiento vehicular. Este repositorio es el ambiente local replicable para ejecutar el demo completo: integra la API Laravel, la consola web Vue, el gateway realtime Node, el servicio de analítica FastAPI, MySQL, PostgreSQL, Redis y Mailpit con un solo archivo Docker Compose.
+
+Este repositorio no contiene la lógica de aplicación. Las aplicaciones viven en submódulos Git y pueden revisarse de forma independiente. El stack contiene la orquestación, los valores locales por defecto, el cableado entre servicios, las revisiones exactas de los submódulos y la guía operativa para ejecutar el sistema completo.
+
+## Propósito De Portafolio
+
+El stack está diseñado para mostrar cómo los servicios individuales trabajan juntos como un solo producto:
+
+- Laravel contiene autenticación, autorización, datos transaccionales, flujos de dominio, auditoría, automatización programada, eventos operativos y correos.
+- Vue contiene la experiencia de navegador: consola autenticada, navegación por roles, flujos CRUD, notificaciones realtime y vistas de analítica.
+- Node contiene la entrega realtime: autenticación Socket.IO con tokens firmados, rooms autorizadas, consumo de Redis Streams, presencia, deduplicación y dead-letter.
+- FastAPI contiene analítica: modelo de lectura PostgreSQL, initial sync desde Laravel, proyección desde Redis Streams, métricas observadas, pronósticos, alertas de riesgo y recomendaciones.
+
+Cada servicio puede estudiarse por separado, pero la ruta de revisión esperada es el stack completo porque varias capacidades solo tienen sentido cuando los servicios están conectados.
 
 ## Servicios Incluidos
 
-- API Laravel desde `maintops-api-laravel`.
-- Consola Vue/Vite desde `maintops-web-vue`.
-- Gateway Realtime Node/Express desde `maintops-realtime-node`.
-- API Analytics FastAPI desde `maintops-analytics-fastapi`.
-- MySQL 8.4 con un volumen local de Docker.
-- PostgreSQL 17 con un volumen local de Docker para el modelo de lectura analítico.
-- Redis 7 con persistencia append-only y Redis Streams.
-- Mailpit para inspección local de correos.
+| Servicio | Proyecto | Responsabilidad |
+| --- | --- | --- |
+| API Laravel | `maintops-api-laravel` | Backend transaccional, auth, policies, state machines, scheduling, auditoría, correos y contratos de integración. |
+| Consola Vue | `maintops-web-vue` | Consola web para operaciones, registros de mantenimiento, actividad realtime y analítica. |
+| Gateway Realtime | `maintops-realtime-node` | Gateway Socket.IO que consume eventos operativos de Laravel desde Redis Streams. |
+| API Analytics | `maintops-analytics-fastapi` | Servicio de analítica read-only con su propio modelo de lectura PostgreSQL. |
+| MySQL | Imagen Docker | Base de datos transaccional de Laravel. |
+| PostgreSQL | Imagen Docker | Base de datos del modelo de lectura de Analytics. |
+| Redis | Imagen Docker | Transporte compartido con Redis Streams y soporte realtime. |
+| Mailpit | Imagen Docker | Bandeja local para recuperación de contraseña y correos operativos al owner. |
 
 ## Requisitos
 
@@ -34,9 +49,11 @@ Si el repositorio fue clonado sin submódulos:
 git submodule update --init --recursive
 ```
 
-## Iniciar El Ambiente Completo
+Los submódulos usan URLs HTTPS públicas para que el stack pueda clonarse sin configurar SSH. Los desarrolladores que prefieran SSH pueden configurarlo localmente con una regla `insteadOf` de Git.
 
-No necesitas crear un archivo `.env` para desarrollo local. `compose.yaml` ya incluye valores por defecto prácticos. Copia `.env.example` a `.env` solo cuando necesites cambiar puertos, credenciales locales, orígenes CORS, secretos de tokens de servicio o la service key de Analytics.
+## Iniciar El Demo Completo
+
+No necesitas crear un archivo `.env` para desarrollo local. `compose.yaml` ya incluye valores por defecto prácticos. Copia `.env.example` a `.env` solo cuando necesites cambiar puertos, credenciales locales, orígenes CORS, nombres de colas o configuración compartida de tokens de servicio.
 
 ```bash
 docker compose config
@@ -44,39 +61,20 @@ docker compose up -d --build
 docker compose ps
 ```
 
-La primera ejecución construye las imágenes, instala las dependencias de aplicación dentro de los contenedores, espera MySQL, PostgreSQL y Redis, ejecuta las migraciones de Laravel, carga los seeders base, ejecuta las migraciones de Analytics, importa el modelo de lectura inicial desde Laravel, inicia los workers de cola, inicia el scheduler de Laravel, levanta el gateway realtime, inicia el worker de Analytics y sirve la consola Vue.
+La primera ejecución construye las imágenes, instala dependencias dentro de los contenedores, espera MySQL, PostgreSQL y Redis, ejecuta migraciones y seeders de Laravel, ejecuta migraciones de Analytics, importa el modelo de lectura inicial desde Laravel, inicia workers y scheduler de Laravel, inicia Realtime, inicia el worker de Analytics y sirve la consola Vue.
 
-El stack ejecuta tres workers de cola de Laravel:
+## URLs De Servicios
 
-- `queue` procesa jobs generales de la aplicación.
-- `queue-events` publica eventos operativos en Redis Streams.
-- `queue-mail` envía correos encolados a través de Mailpit.
-
-## Servicios
-
-| Servicio | URL | Propósito |
+| Superficie | URL | Uso |
 | --- | --- | --- |
-| Frontend Vue | http://localhost:5173 | Aplicación web MaintOps Console. |
-| API Laravel | http://localhost:8000/api/v1 | API transaccional. |
+| Frontend Vue | http://localhost:5173 | Consola principal de MaintOps. |
+| API Laravel | http://localhost:8000/api/v1 | Raíz de la API transaccional. |
 | Health check Laravel | http://localhost:8000/up | Verificación de disponibilidad del backend. |
-| Health check Realtime | http://localhost:3000/ready | Verificación del gateway Socket.IO y Redis. |
-| API Analytics | http://localhost:8001 | Métricas administrativas, pronósticos, riesgos y recomendaciones. |
-| Health check Analytics | http://localhost:8001/health | Verificación de vida del proceso FastAPI. |
-| Readiness Analytics | http://localhost:8001/ready | Verificación de disponibilidad de FastAPI y PostgreSQL. |
-| Mailpit | http://localhost:8025 | Bandeja de correos local. |
-
-## Correos Y Recuperación De Contraseña
-
-Mailpit es el servidor SMTP local usado por Laravel. Captura los correos de la aplicación en vez de enviarlos a internet, así que la recuperación de contraseña puede probarse sin credenciales externas.
-
-El flujo de recuperación de contraseña es local por defecto:
-
-1. Abre `http://localhost:5173`.
-2. Usa el enlace "Forgot your password?" en la pantalla de login.
-3. Revisa el correo de recuperación en Mailpit en `http://localhost:8025`.
-4. Abre el enlace de recuperación. Laravel genera los enlaces usando `FRONTEND_PASSWORD_RESET_URL`, cuyo valor por defecto es `http://localhost:5173/reset-password`.
-
-Este proyecto es seguro para ejecutarse como demo local, pero los usuarios de demo no deberían ingresar datos reales de clientes, vehículos, direcciones o correos personales. Mailpit queda expuesto de forma intencional en el stack local para que cualquier persona que ejecute el proyecto pueda inspeccionar los correos de prueba.
+| Readiness Realtime | http://localhost:3000/ready | Verificación del gateway Socket.IO y Redis. |
+| API Analytics | http://localhost:8001 | Analítica operacional read-only. |
+| Health check Analytics | http://localhost:8001/health | Verificación de vida de FastAPI. |
+| Readiness Analytics | http://localhost:8001/ready | Verificación de FastAPI y PostgreSQL. |
+| Mailpit | http://localhost:8025 | Bandeja local para correos demo. |
 
 MySQL se publica solo en localhost:
 
@@ -88,8 +86,6 @@ User: maintops
 Password: maintops-local-password
 ```
 
-Redis queda disponible solo dentro de la red de Compose como `redis:6379`.
-
 PostgreSQL de Analytics se publica solo en localhost:
 
 ```text
@@ -100,23 +96,11 @@ User: maintops_analytics
 Password: maintops-analytics-password
 ```
 
-## Flujo De Ejecución
-
-La consola Vue autentica contra Laravel y solicita un token de servicio de corta duración en `POST /api/v1/auth/service-token` con `audience: "realtime"`. El gateway Realtime valida ese token, une el navegador a salas autorizadas de Socket.IO, consume eventos operativos desde Redis Streams y envía actualizaciones a los usuarios conectados.
-
-Laravel publica eventos operativos en el stream compartido configurado por `MAINTOPS_EVENTS_STREAM`. El stack fija este stream como `maintops:events` tanto para Laravel como para el gateway Realtime.
-
-Las rooms realtime se derivan únicamente de claims firmados por Laravel. Los usuarios siempre reciben rooms `user:<id>` y `role:<role>` permitidas; los usuarios con alcance de taller también reciben `workshop:<id>` y eventos de presencia de taller. Esto permite tanto notificaciones operativas por taller como futuras notificaciones administrativas, por ejemplo eventos de gestión de usuarios.
-
-La API Analytics usa su propio modelo de lectura en PostgreSQL. Al iniciar el stack, `analytics-migrations` aplica las migraciones Alembic y `analytics-initial-sync` importa el snapshot interno de Laravel desde `GET /api/v1/internal/analytics/initial-sync/{resource}` usando `OPERATIONS_ANALYTICS_SERVICE_KEY`. Después de eso, `analytics-worker` consume el mismo Redis Stream que realtime y mantiene actualizado el modelo de lectura.
-
-La consola Vue solicita a Laravel un token de servicio de corta duración con `audience: "analytics"` antes de llamar a FastAPI. Analytics valida ese token con el `SERVICE_TOKEN_SECRET` compartido; el navegador no llama a FastAPI directamente con el token de sesión de Laravel.
-
-Todos los servicios usan valores locales por defecto desde `compose.yaml`. Si sobrescribes `SERVICE_TOKEN_SECRET`, usa el mismo valor para Laravel, Realtime y Analytics; de lo contrario las conexiones realtime y las peticiones a Analytics serán rechazadas.
+Redis queda disponible solo dentro de la red de Compose como `redis:6379`.
 
 ## Cuenta Demo
 
-El seeder base crea un usuario administrativo:
+Los seeders base crean usuarios demo para los roles principales. Empieza con la cuenta administrativa:
 
 ```text
 email: admin@maint.test
@@ -124,7 +108,47 @@ password: password
 role: super_admin
 ```
 
-## Verificación Rápida
+## Ruta Sugerida De Revisión
+
+1. Abre `http://localhost:5173` e inicia sesión con la cuenta demo.
+2. Revisa dashboard, owners, vehicles, workshops, tasks, plans, orders, audit log y analytics.
+3. Abre la documentación de la API Laravel en `/docs` después de iniciar sesión en el área interna como `super_admin`.
+4. Crea o actualiza una orden de mantenimiento y observa cómo el frontend se refresca mediante eventos realtime.
+5. Agenda o completa una orden e inspecciona el correo dirigido al owner en Mailpit.
+6. Abre la pantalla Analytics y revisa métricas observadas, pronósticos de carga, alertas de riesgo y recomendaciones.
+
+Usa solo datos de muestra. Los ambientes demo no deberían recibir datos reales de clientes, vehículos, direcciones, contraseñas, teléfonos, documentos o correos personales. Mailpit queda expuesto intencionalmente en el stack local para que los revisores puedan inspeccionar correos demo generados.
+
+## Flujo De Ejecución
+
+La consola Vue autentica contra Laravel. Laravel sigue siendo la fuente de verdad de identidad y autorización.
+
+Para actualizaciones realtime, el navegador solicita a Laravel un token de servicio de corta duración con `audience: "realtime"` y lo usa durante el handshake de Socket.IO. El gateway Node valida el token firmado, consume eventos operativos de Laravel desde Redis Streams y entrega solo eventos autorizados a usuarios conectados.
+
+Para analítica, el navegador solicita a Laravel un token de servicio de corta duración con `audience: "analytics"` y lo usa al llamar a FastAPI. Analytics valida el mismo contrato de token compartido y lee desde su propio modelo PostgreSQL en vez de leer directamente la base MySQL de Laravel.
+
+Laravel publica eventos operativos en el Redis Stream compartido configurado por `MAINTOPS_EVENTS_STREAM`. Realtime y Analytics consumen el mismo stream con consumer groups separados, así que la entrega live de UI y la proyección analítica pueden evolucionar de forma independiente.
+
+Si sobrescribes `SERVICE_TOKEN_SECRET`, usa el mismo valor para Laravel, Realtime y Analytics; de lo contrario las conexiones realtime y las peticiones a Analytics serán rechazadas.
+
+## Colas Y Correos
+
+El stack ejecuta tres workers de cola de Laravel:
+
+- `queue` procesa jobs generales de la aplicación.
+- `queue-events` publica eventos operativos en Redis Streams.
+- `queue-mail` envía correos encolados a través de Mailpit.
+
+Mailpit captura correos de aplicación en vez de enviarlos a internet. Se usa para recuperación de contraseña y correos operativos al owner.
+
+La recuperación de contraseña es local por defecto:
+
+1. Abre `http://localhost:5173`.
+2. Usa el enlace "Forgot your password?" en la pantalla de login.
+3. Revisa el correo de recuperación en Mailpit en `http://localhost:8025`.
+4. Abre el enlace de recuperación. Laravel genera los enlaces usando `FRONTEND_PASSWORD_RESET_URL`, cuyo valor por defecto es `http://localhost:5173/reset-password`.
+
+## Verificación
 
 ```bash
 curl http://localhost:8000/up
@@ -133,15 +157,13 @@ curl http://localhost:8001/health
 curl http://localhost:8001/ready
 ```
 
-Luego abre `http://localhost:5173` e inicia sesión con la cuenta demo. El frontend debería conectarse al gateway realtime después del login, y la pantalla Analytics debería estar disponible para usuarios administrativos.
-
-Logs útiles:
+Logs útiles de servicios permanentes:
 
 ```bash
 docker compose logs -f laravel queue queue-events queue-mail scheduler realtime analytics-api analytics-worker frontend
 ```
 
-Si el arranque se detiene antes de que los servicios permanentes queden saludables, revisa los servicios de inicialización:
+Si el arranque se detiene antes de que los servicios permanentes estén saludables, revisa los servicios de inicialización:
 
 ```bash
 docker compose logs laravel-init analytics-migrations analytics-initial-sync
@@ -155,7 +177,7 @@ Detener el ambiente sin borrar datos:
 docker compose down
 ```
 
-Borrar los datos de MySQL, PostgreSQL y Redis e iniciar de nuevo:
+Borrar datos de MySQL, PostgreSQL y Redis e iniciar de nuevo:
 
 ```bash
 docker compose down -v
@@ -171,6 +193,8 @@ Los proyectos de aplicación están incluidos como submódulos Git:
 - `maintops-realtime-node`: https://github.com/cofran91/maintops-realtime-node
 - `maintops-analytics-fastapi`: https://github.com/cofran91/maintops-analytics-fastapi
 
-Cada repositorio de aplicación también puede abrirse de forma independiente para revisar su instalación, notas de arquitectura, comandos y documentación propia. Los cambios de aplicación deben commitearse primero en sus propios repositorios. Este stack guarda las revisiones exactas de los submódulos y la configuración local necesaria para ejecutarlos juntos.
+Cada repositorio de aplicación documenta sus propias decisiones tecnológicas, estructura de carpetas, comandos, pruebas y límites de integración. Los cambios de aplicación deben commitearse primero en sus propios repositorios. Este stack guarda las revisiones exactas de los submódulos y la configuración local necesaria para ejecutarlos juntos.
 
-La configuración específica de reverse proxy para despliegue queda intencionalmente fuera de este repositorio. Este stack está enfocado en el ambiente local replicable.
+## Límite De Despliegue
+
+La configuración específica de reverse proxy para despliegue queda intencionalmente fuera de este repositorio. Este stack está enfocado en el ambiente local replicable usado para revisar el demo de portafolio.
