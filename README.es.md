@@ -19,7 +19,7 @@ Este repositorio contiene únicamente la orquestación del ambiente: Docker Comp
 
 - Docker Engine o Docker Desktop con Docker Compose v2.
 - Git.
-- Acceso a los repositorios de los submódulos si se clona desde un remoto privado.
+- Acceso de red a GitHub para clonar este repositorio y sus submódulos públicos.
 
 ## Clonar
 
@@ -44,7 +44,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
-La primera ejecución construye las imágenes, instala las dependencias de aplicación dentro de los contenedores, espera MySQL, PostgreSQL y Redis, ejecuta las migraciones de Laravel, carga los seeders base, ejecuta las migraciones de Analytics, importa el modelo de lectura inicial desde Laravel, inicia el worker de cola, inicia el scheduler de Laravel, levanta el gateway realtime, inicia el worker de Analytics y sirve la consola Vue.
+La primera ejecución construye las imágenes, instala las dependencias de aplicación dentro de los contenedores, espera MySQL, PostgreSQL y Redis, ejecuta las migraciones de Laravel, carga los seeders base, ejecuta las migraciones de Analytics, importa el modelo de lectura inicial desde Laravel, inicia los workers de cola, inicia el scheduler de Laravel, levanta el gateway realtime, inicia el worker de Analytics y sirve la consola Vue.
+
+El stack ejecuta tres workers de cola de Laravel:
+
+- `queue` procesa jobs generales de la aplicación.
+- `queue-events` publica eventos operativos en Redis Streams.
+- `queue-mail` envía correos encolados a través de Mailpit.
 
 ## Servicios
 
@@ -58,6 +64,19 @@ La primera ejecución construye las imágenes, instala las dependencias de aplic
 | Health check Analytics | http://localhost:8001/health | Verificación de vida del proceso FastAPI. |
 | Readiness Analytics | http://localhost:8001/ready | Verificación de disponibilidad de FastAPI y PostgreSQL. |
 | Mailpit | http://localhost:8025 | Bandeja de correos local. |
+
+## Correos Y Recuperación De Contraseña
+
+Mailpit es el servidor SMTP local usado por Laravel. Captura los correos de la aplicación en vez de enviarlos a internet, así que la recuperación de contraseña puede probarse sin credenciales externas.
+
+El flujo de recuperación de contraseña es local por defecto:
+
+1. Abre `http://localhost:5173`.
+2. Usa el enlace "Forgot your password?" en la pantalla de login.
+3. Revisa el correo de recuperación en Mailpit en `http://localhost:8025`.
+4. Abre el enlace de recuperación. Laravel genera los enlaces usando `FRONTEND_PASSWORD_RESET_URL`, cuyo valor por defecto es `http://localhost:5173/reset-password`.
+
+Este proyecto es seguro para ejecutarse como demo local, pero los usuarios de demo no deberían ingresar datos reales de clientes, vehículos, direcciones o correos personales. Mailpit queda expuesto de forma intencional en el stack local para que cualquier persona que ejecute el proyecto pueda inspeccionar los correos de prueba.
 
 MySQL se publica solo en localhost:
 
@@ -93,6 +112,8 @@ La API Analytics usa su propio modelo de lectura en PostgreSQL. Al iniciar el st
 
 La consola Vue solicita a Laravel un token de servicio de corta duración con `audience: "analytics"` antes de llamar a FastAPI. Analytics valida ese token con el `SERVICE_TOKEN_SECRET` compartido; el navegador no llama a FastAPI directamente con el token de sesión de Laravel.
 
+Todos los servicios usan valores locales por defecto desde `compose.yaml`. Si sobrescribes `SERVICE_TOKEN_SECRET`, usa el mismo valor para Laravel, Realtime y Analytics; de lo contrario las conexiones realtime y las peticiones a Analytics serán rechazadas.
+
 ## Cuenta Demo
 
 El seeder base crea un usuario administrativo:
@@ -117,7 +138,13 @@ Luego abre `http://localhost:5173` e inicia sesión con la cuenta demo. El front
 Logs útiles:
 
 ```bash
-docker compose logs -f laravel queue scheduler realtime analytics-api analytics-worker frontend
+docker compose logs -f laravel queue queue-events queue-mail scheduler realtime analytics-api analytics-worker frontend
+```
+
+Si el arranque se detiene antes de que los servicios permanentes queden saludables, revisa los servicios de inicialización:
+
+```bash
+docker compose logs laravel-init analytics-migrations analytics-initial-sync
 ```
 
 ## Detener O Reiniciar
@@ -145,3 +172,5 @@ Los proyectos de aplicación están incluidos como submódulos Git:
 - `maintops-analytics-fastapi`: https://github.com/cofran91/maintops-analytics-fastapi
 
 Cada repositorio de aplicación también puede abrirse de forma independiente para revisar su instalación, notas de arquitectura, comandos y documentación propia. Los cambios de aplicación deben commitearse primero en sus propios repositorios. Este stack guarda las revisiones exactas de los submódulos y la configuración local necesaria para ejecutarlos juntos.
+
+La configuración específica de reverse proxy para despliegue queda intencionalmente fuera de este repositorio. Este stack está enfocado en el ambiente local replicable.

@@ -19,7 +19,7 @@ This repository contains environment orchestration only: Docker Compose, local d
 
 - Docker Engine or Docker Desktop with Docker Compose v2.
 - Git.
-- Access to the submodule repositories when cloning from a private remote.
+- Network access to GitHub to clone this repository and its public submodules.
 
 ## Clone
 
@@ -44,7 +44,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
-The first run builds the images, installs application dependencies inside the containers, waits for MySQL, PostgreSQL, and Redis, runs Laravel migrations, loads the base seeders, runs Analytics migrations, imports the initial Analytics read model from Laravel, starts the Laravel queue worker and scheduler, starts the realtime gateway, starts the Analytics worker, and serves the Vue console.
+The first run builds the images, installs application dependencies inside the containers, waits for MySQL, PostgreSQL, and Redis, runs Laravel migrations, loads the base seeders, runs Analytics migrations, imports the initial Analytics read model from Laravel, starts the Laravel queue workers and scheduler, starts the realtime gateway, starts the Analytics worker, and serves the Vue console.
+
+The stack runs three Laravel queue workers:
+
+- `queue` processes default application jobs.
+- `queue-events` publishes operational events to Redis Streams.
+- `queue-mail` sends queued emails through Mailpit.
 
 ## Services
 
@@ -58,6 +64,19 @@ The first run builds the images, installs application dependencies inside the co
 | Analytics health check | http://localhost:8001/health | FastAPI process liveness check. |
 | Analytics readiness check | http://localhost:8001/ready | FastAPI and PostgreSQL readiness check. |
 | Mailpit | http://localhost:8025 | Local email inbox. |
+
+## Email And Password Recovery
+
+Mailpit is the local SMTP server used by Laravel. It captures application emails instead of sending them to the internet, so password recovery can be tested without external credentials.
+
+The password recovery flow is local by default:
+
+1. Open `http://localhost:5173`.
+2. Use the "Forgot your password?" link on the login screen.
+3. Check the reset email in Mailpit at `http://localhost:8025`.
+4. Open the reset link. Laravel generates links using `FRONTEND_PASSWORD_RESET_URL`, which defaults to `http://localhost:5173/reset-password`.
+
+This project is safe to run as a local demo, but demo users should not enter real customer data, real vehicle data, real addresses, or personal email addresses. Mailpit is intentionally exposed in the local stack so anyone running the project can inspect demo emails.
 
 MySQL is published on localhost only:
 
@@ -93,6 +112,8 @@ The Analytics API uses its own PostgreSQL read model. On stack startup, `analyti
 
 The Vue console requests a short-lived service token from Laravel with `audience: "analytics"` before calling FastAPI. Analytics validates that token with the shared `SERVICE_TOKEN_SECRET`; the browser never calls FastAPI with the Laravel session token directly.
 
+All services use local development defaults from `compose.yaml`. If you override `SERVICE_TOKEN_SECRET`, use the same value for Laravel, Realtime, and Analytics; otherwise Realtime sockets and Analytics requests will be rejected.
+
 ## Demo Account
 
 The base seeder creates an administrative user:
@@ -117,7 +138,13 @@ Then open `http://localhost:5173` and sign in with the demo account. The fronten
 Useful logs:
 
 ```bash
-docker compose logs -f laravel queue scheduler realtime analytics-api analytics-worker frontend
+docker compose logs -f laravel queue queue-events queue-mail scheduler realtime analytics-api analytics-worker frontend
+```
+
+If startup stops before the long-running services are healthy, inspect the one-shot initialization services:
+
+```bash
+docker compose logs laravel-init analytics-migrations analytics-initial-sync
 ```
 
 ## Stop Or Reset
@@ -145,3 +172,5 @@ The application projects are included as Git submodules:
 - `maintops-analytics-fastapi`: https://github.com/cofran91/maintops-analytics-fastapi
 
 Each application repository can also be opened independently if you want to review its own setup, architecture notes, commands, and documentation. Application changes should be committed in their own repositories first. This stack stores the exact submodule revisions plus the local environment configuration needed to run them together.
+
+Deployment-specific reverse proxy configuration is intentionally outside this repository. This stack is focused on the reproducible local environment.

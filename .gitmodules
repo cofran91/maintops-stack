@@ -1,12 +1,12 @@
 [submodule "maintops-api-laravel"]
 	path = maintops-api-laravel
-	url = git@github.com:cofran91/maintops-api-laravel.git
+	url = https://github.com/cofran91/maintops-api-laravel.git
 [submodule "maintops-web-vue"]
 	path = maintops-web-vue
-	url = git@github.com:cofran91/maintops-web-vue.git
+	url = https://github.com/cofran91/maintops-web-vue.git
 [submodule "maintops-realtime-node"]
 	path = maintops-realtime-node
-	url = git@github.com:cofran91/maintops-realtime-node.git
+	url = https://github.com/cofran91/maintops-realtime-node.git
 [submodule "maintops-analytics-fastapi"]
 	path = maintops-analytics-fastapi
-	url = git@github.com:cofran91/maintops-analytics-fastapi.git
+	url = https://github.com/cofran91/maintops-analytics-fastapi.git

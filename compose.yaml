@@ -6,6 +6,7 @@ x-laravel-environment: &laravel-environment
   APP_DEBUG: "${APP_DEBUG:-true}"
   APP_KEY: ${APP_KEY:-base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
   APP_URL: ${APP_URL:-http://localhost:8000}
+  FRONTEND_PASSWORD_RESET_URL: ${FRONTEND_PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
   API_VERSION: ${API_VERSION:-1.0.0}
   LOG_CHANNEL: ${LOG_CHANNEL:-stack}
   LOG_STACK: ${LOG_STACK:-single}
@@ -23,6 +24,9 @@ x-laravel-environment: &laravel-environment
   BROADCAST_CONNECTION: log
   FILESYSTEM_DISK: local
   QUEUE_CONNECTION: database
+  QUEUE_DEFAULT: ${QUEUE_DEFAULT:-default}
+  QUEUE_EVENTS: ${QUEUE_EVENTS:-events}
+  QUEUE_MAIL: ${QUEUE_MAIL:-mail}
   CACHE_STORE: database
   REDIS_CLIENT: phpredis
   REDIS_HOST: redis
@@ -146,7 +150,27 @@ services:
   queue:
     image: maintops-stack-laravel
     build: *laravel-build
-    command: php artisan queue:work --sleep=1 --tries=5 --timeout=90
+    command: php artisan queue:work --queue=${QUEUE_DEFAULT:-default} --sleep=1 --tries=5 --timeout=90
+    environment: *laravel-environment
+    depends_on:
+      laravel-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  queue-events:
+    image: maintops-stack-laravel
+    build: *laravel-build
+    command: php artisan queue:work --queue=${QUEUE_EVENTS:-events} --sleep=1 --tries=5 --timeout=90
+    environment: *laravel-environment
+    depends_on:
+      laravel-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  queue-mail:
+    image: maintops-stack-laravel
+    build: *laravel-build
+    command: php artisan queue:work --queue=${QUEUE_MAIL:-mail} --sleep=1 --tries=5 --timeout=90
     environment: *laravel-environment
     depends_on:
       laravel-init:
