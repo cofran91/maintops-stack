@@ -17,6 +17,43 @@ El stack está diseñado para mostrar cómo los servicios individuales trabajan 
 
 Cada servicio puede estudiarse por separado, pero la ruta de revisión esperada es el stack completo porque varias capacidades solo tienen sentido cuando los servicios están conectados.
 
+## Qué Simula El Producto
+
+MaintOps simula la operación diaria de una empresa de mantenimiento vehicular.
+
+El producto no es solo un demo CRUD. Modela cómo un asesor recibe un vehículo de cliente, cómo el trabajo de mantenimiento se organiza en una orden, cómo los trabajos se aprueban y agendan, cómo los técnicos ejecutan trabajo asignado y cómo los administradores supervisan la operación mediante dashboard, notificaciones realtime, correos y analítica.
+
+Conceptos principales del negocio:
+
+| Concepto | Significado En El Demo |
+| --- | --- |
+| Owner / propietario | Cliente dueño de uno o más vehículos. Es un registro del dominio, no un usuario interactivo de la consola. |
+| Vehicle / vehículo | Vehículo que recibe mantenimiento. Pertenece a un owner y guarda datos como placa y odómetro. |
+| Workshop / taller | Ubicación física u operativa donde se realiza el mantenimiento. |
+| Technician / técnico | Usuario que ejecuta trabajo de mantenimiento asignado. |
+| Vehicle system / sistema del vehículo | Área de especialidad como motor, frenos, eléctrico, refrigeración, llantas o suspensión. Talleres y técnicos pueden limitarse por sistemas soportados. |
+| Maintenance task / tarea | Trabajo que puede realizarse, como revisar frenos, cambiar aceite o diagnosticar un problema eléctrico. |
+| Maintenance plan / plan | Conjunto de tareas recurrentes recomendadas por tiempo o kilometraje. |
+| Maintenance order / orden | Solicitud principal de trabajo para un vehículo. Agrupa el mantenimiento que debe revisarse, aprobarse, agendarse y ejecutarse. |
+| Order item / ítem de orden | Trabajo individual dentro de una orden. Puede aprobarse, rechazarse, agendarse, iniciarse, completarse o cancelarse. |
+| Approval / aprobación | Decisión de cara al cliente sobre qué ítems de la orden se realizarán. |
+| Scheduling / agenda | Asignación del trabajo aprobado a un taller, técnico y horario planeado. |
+
+El flujo funcional esperado es:
+
+1. Un administrador prepara datos operativos: usuarios, roles, talleres, técnicos, sistemas del vehículo, tareas y planes de mantenimiento.
+2. Un asesor registra o revisa un owner y un vehículo.
+3. Un asesor crea una orden de mantenimiento para ese vehículo.
+4. El sistema puede agregar ítems recomendados desde planes vencidos y problemas activos específicos del vehículo.
+5. El owner aprueba o rechaza cada ítem propuesto. Los aceptados avanzan; los rechazados quedan como historial de decisión.
+6. Los ítems aprobados se agendan a un taller y técnico según capacidad, horario laboral, disponibilidad y duración esperada.
+7. Un técnico inicia sesión y ve solo trabajo asignado.
+8. El técnico inicia y completa los ítems asignados.
+9. La orden puede completarse y entregarse.
+10. Notificaciones realtime, correo al owner, dashboard, auditoría y analítica se actualizan desde los mismos cambios operativos.
+
+No necesitas crear todo este flujo desde cero en la primera revisión. Los seeders incluyen datos demo en los principales estados del ciclo de vida para que puedas revisar órdenes, usuarios, talleres, tareas, notificaciones y analítica de inmediato.
+
 ## Servicios Incluidos
 
 | Servicio | Proyecto | Responsabilidad |
@@ -100,22 +137,38 @@ Redis queda disponible solo dentro de la red de Compose como `redis:6379`.
 
 ## Cuenta Demo
 
-Los seeders base crean usuarios demo para los roles principales. Empieza con la cuenta administrativa:
+Los seeders base crean usuarios demo para los roles principales. Todas las cuentas demo usan:
 
 ```text
-email: admin@maint.test
 password: password
-role: super_admin
 ```
+
+Cuentas recomendadas:
+
+| Rol | Email | Qué Revisar |
+| --- | --- | --- |
+| Super admin | `admin@maint.test` | Revisión local completa, herramientas internas, documentación API, auditoría y administración sin restricciones. |
+| Admin | `admin.demo@maint.test` | Dashboard, catálogos, usuarios, talleres, órdenes, auditoría y Analytics. |
+| Jefe de taller | `manager.north@maint.test` | Operación limitada al taller asignado y visibilidad restringida. |
+| Asesor | `advisor.north@maint.test` | Flujos de owners, vehículos y órdenes de mantenimiento. |
+| Técnico | `technician.engine@maint.test` | Trabajo asignado y transiciones ejecutables de ítems. |
 
 ## Ruta Sugerida De Revisión
 
-1. Abre `http://localhost:5173` e inicia sesión con la cuenta demo.
-2. Revisa dashboard, owners, vehicles, workshops, tasks, plans, orders, audit log y analytics.
-3. Abre la documentación de la API Laravel en `/docs` después de iniciar sesión en el área interna como `super_admin`.
-4. Crea o actualiza una orden de mantenimiento y observa cómo el frontend se refresca mediante eventos realtime.
-5. Agenda o completa una orden e inspecciona el correo dirigido al owner en Mailpit.
-6. Abre la pantalla Analytics y revisa métricas observadas, pronósticos de carga, alertas de riesgo y recomendaciones.
+Para una guía visual paso a paso de la demo pública, abre:
+
+```text
+https://juandavidfranco.com/demo
+```
+
+Usa la misma lógica de revisión en local con estas URLs del stack:
+
+- Consola Vue: `http://localhost:5173`
+- Bandeja Mailpit: `http://localhost:8025`
+- Documentación API Laravel: `http://localhost:8000/docs`
+- Documentación API Analytics: `http://localhost:8001/docs`
+
+Para revisión local, empieza con `admin@maint.test` porque es la cuenta `super_admin` y permite inspeccionar el ambiente completo, herramientas internas, auditoría y documentación API. Luego cambia a `admin.demo@maint.test`, `manager.north@maint.test`, `advisor.north@maint.test` y `technician.engine@maint.test` para validar comportamiento limitado por rol.
 
 Usa solo datos de muestra. Los ambientes demo no deberían recibir datos reales de clientes, vehículos, direcciones, contraseñas, teléfonos, documentos o correos personales. Mailpit queda expuesto intencionalmente en el stack local para que los revisores puedan inspeccionar correos demo generados.
 
