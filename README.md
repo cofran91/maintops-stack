@@ -10,10 +10,10 @@ This repository does not own application source code. The applications live in G
 
 The stack is designed to show how the individual services work together as one product:
 
-- Laravel owns authentication, authorization, transactional data, domain workflows, audit records, scheduled automation, operational events, and emails.
-- Vue owns the browser experience: authenticated console, role-aware navigation, CRUD workflows, realtime notifications, and analytics views.
+- Laravel owns authentication, authorization, transactional data, domain workflows, audit records, scheduled automation, localized API responses, operational events, and emails.
+- Vue owns the browser experience: bilingual authenticated console, role-aware navigation, CRUD workflows, realtime notifications, and analytics views.
 - Node owns realtime delivery: signed-token Socket.IO authentication, authorized rooms, Redis Streams consumption, presence, event deduplication, and dead-letter handling.
-- FastAPI owns analytics: PostgreSQL read model, initial sync from Laravel, Redis Streams projection, observed metrics, forecasts, risk alerts, and recommendations.
+- FastAPI owns analytics: PostgreSQL read model, initial sync from Laravel, Redis Streams projection, observed metrics, forecasts, risk alerts, recommendations, and structured codes that the bilingual console can translate.
 
 Each service can be studied on its own, but the intended review path is the full stack because several capabilities only make sense when the services are connected.
 

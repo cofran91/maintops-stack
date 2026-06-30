@@ -10,10 +10,10 @@ Este repositorio no contiene la lógica de aplicación. Las aplicaciones viven e
 
 El stack está diseñado para mostrar cómo los servicios individuales trabajan juntos como un solo producto:
 
-- Laravel contiene autenticación, autorización, datos transaccionales, flujos de dominio, auditoría, automatización programada, eventos operativos y correos.
-- Vue contiene la experiencia de navegador: consola autenticada, navegación por roles, flujos CRUD, notificaciones realtime y vistas de analítica.
+- Laravel contiene autenticación, autorización, datos transaccionales, flujos de dominio, auditoría, automatización programada, respuestas API localizadas, eventos operativos y correos.
+- Vue contiene la experiencia de navegador: consola autenticada bilingüe, navegación por roles, flujos CRUD, notificaciones realtime y vistas de analítica.
 - Node contiene la entrega realtime: autenticación Socket.IO con tokens firmados, rooms autorizadas, consumo de Redis Streams, presencia, deduplicación y dead-letter.
-- FastAPI contiene analítica: modelo de lectura PostgreSQL, initial sync desde Laravel, proyección desde Redis Streams, métricas observadas, pronósticos, alertas de riesgo y recomendaciones.
+- FastAPI contiene analítica: modelo de lectura PostgreSQL, initial sync desde Laravel, proyección desde Redis Streams, métricas observadas, pronósticos, alertas de riesgo, recomendaciones y códigos estructurados que la consola bilingüe puede traducir.
 
 Cada servicio puede estudiarse por separado, pero la ruta de revisión esperada es el stack completo porque varias capacidades solo tienen sentido cuando los servicios están conectados.
 
